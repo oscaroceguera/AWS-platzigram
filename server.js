@@ -3,8 +3,15 @@ var multer  = require('multer');
 var ext = require('file-extension');
 var aws = require('aws-sdk');
 var multerS3 = require('multer-s3')
-
+var cookieParser = require('cookie-parser')
+var bodyParser = require('body-parser')
+var expressSession = require('express-session')
+var passport = require('passport')
 var config = require('./config')
+var platzigram = require('platzigram-client')
+var port = process.env.PORT || 3000
+
+var client = platzigram.createClient(config.client);
 
 var s3 = new aws.S3({
 	accessKeyId: config.aws.accessKey,
@@ -27,6 +34,17 @@ var upload = multer({ storage: storage }).single('picture');
 
 var app = express();
 
+app.set(bodyParser.json())
+app.use(bodyParser.urlencoded({ extended: false}))
+app.use(cookieParser())
+app.use(expressSession({
+  secret: config.secret,
+  resave: false,
+  saveUnitialized: false
+}));
+app.use(passport.initialize())
+app.use(passport.session())
+
 app.set('view engine', 'pug');
 
 app.use(express.static('public'));
@@ -37,6 +55,15 @@ app.get('/', function (req, res) {
 
 app.get('/signup', function (req, res) {
   res.render('index', { title: 'Platzigram - Signup' });
+})
+
+app.post('/signup', function (req, res) {
+  var user = req.body
+  client.saveUser(user, function (err, usr) {
+    if (err) return res.status(500).send(err.message)
+
+    res.redirect('/signin')
+  })
 })
 
 app.get('/signin', function (req, res) {
@@ -130,7 +157,7 @@ app.get('/:username/:id', function (req, res) {
   res.render('index', { title: `Platzigram - ${req.params.username}` });
 })
 
-app.listen(3000, function (err) {
+app.listen(port, function (err) {
   if (err) return console.log('Hubo un error'), process.exit(1);
 
   console.log('Platzigram escuchando en el puerto 3000');
